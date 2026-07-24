@@ -498,4 +498,33 @@ describe("memory_action_create MCP tool", () => {
 
     expect(parsed.action.createdBy).toBe("unknown");
   });
+
+  it("advertises createdBy as an optional string in the tool schema", async () => {
+    const result = (await sdk.trigger("mcp::tools::list", {
+      body: {},
+      headers: {},
+    })) as {
+      status_code: number;
+      body: {
+        tools: Array<{
+          name: string;
+          inputSchema: {
+            properties: Record<string, { type: string }>;
+            required?: string[];
+          };
+        }>;
+      };
+    };
+
+    const tool = result.body.tools.find(
+      (t) => t.name === "memory_action_create",
+    );
+
+    expect(tool).toBeDefined();
+    expect(tool!.inputSchema.properties.createdBy).toEqual({
+      type: "string",
+      description: "Agent or user ID creating this action",
+    });
+    expect(tool!.inputSchema.required).not.toContain("createdBy");
+  });
 });
