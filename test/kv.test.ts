@@ -20,12 +20,12 @@ describe("StateKV", () => {
     expect(trigger).toHaveBeenCalledTimes(5);
     for (const call of trigger.mock.calls) {
       const request = call[0] as { timeoutMs?: number };
-      expect(request.timeoutMs).toBeDefined();
-      expect(request.timeoutMs).toBeGreaterThan(0);
       // The whole point of #1127's fix: KV calls must not silently inherit
       // the 180s worker default sized for LLM-backed functions — a stuck
-      // KV call should fail fast, well before that ceiling.
-      expect(request.timeoutMs!).toBeLessThan(180_000);
+      // KV call should fail fast, well before that ceiling. Pinned to the
+      // exact configured value (not just "some number under 180s") so a
+      // future change to KV_TIMEOUT_MS is a deliberate, visible diff here.
+      expect(request.timeoutMs).toBe(10_000);
     }
   });
 
