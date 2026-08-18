@@ -54,12 +54,28 @@ describe("StateKV", () => {
     );
   });
 
-  it("falls back to the 10s default for malformed or non-positive env values", async () => {
+  it("honours the maximum valid setTimeout delay (2147483647)", async () => {
+    process.env["AGENTMEMORY_KV_TIMEOUT_MS"] = "2147483647";
+    const { StateKV } = await import("../src/state/kv.js");
+    const trigger = vi.fn().mockResolvedValue(null);
+    const kv = new StateKV(fakeSdk(trigger));
+
+    await kv.get("scope", "key");
+
+    expect(trigger).toHaveBeenCalledWith(
+      expect.objectContaining({ timeoutMs: 2_147_483_647 }),
+    );
+  });
+
+  it("falls back to the 10s default for malformed, non-positive, or overflowing env values", async () => {
     // Mirrors the OPENAI_TIMEOUT_MS strict-parse fallback cases in
     // test/fetch-timeout.test.ts (#446-adjacent CodeRabbit catch): a typo'd
     // env value should not silently masquerade as a valid, possibly
-    // dangerously small or negative, timeout.
-    for (const bad of ["30ms", "1_000", "60s", "-30", "0", ""]) {
+    // dangerously small or negative, timeout. 2147483648+ is also rejected —
+    // setTimeout's delay is a 32-bit signed int and iii-sdk forwards
+    // timeoutMs to it uncapped, so an unbounded value would silently become
+    // a ~1ms timeout instead of erroring.
+    for (const bad of ["30ms", "1_000", "60s", "-30", "0", "", "2147483648", "9007199254740991"]) {
       vi.resetModules();
       process.env["AGENTMEMORY_KV_TIMEOUT_MS"] = bad;
       const { StateKV } = await import("../src/state/kv.js");

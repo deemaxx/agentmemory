@@ -19,16 +19,12 @@ import { getEnvVar } from '../config.js'
 // (function_id + scope/key in the resulting error) instead of silently
 // consuming the same 180s budget reserved for LLM work.
 //
-// AGENTMEMORY_KV_TIMEOUT_MS overrides the default below the 180s worker
-// ceiling. The default (10s) targets the file_based adapter; a
-// network-backed state adapter can raise it without a code change.
-//
-// Strict-digits parse (not plain Number.parseInt), matching
-// parsePositiveInt in src/providers/openai.ts (#446): parseInt would
-// silently accept "30ms" or "1_000" as 30 / 1, swallowing a typo as a
-// valid — and possibly dangerously small — timeout instead of falling
-// back to the default.
+// AGENTMEMORY_KV_TIMEOUT_MS overrides the default (see .env.example /
+// plugin/skills/agentmemory-config/REFERENCE.md for the parsing contract).
 const DEFAULT_KV_TIMEOUT_MS = 10_000
+// setTimeout's delay is a 32-bit signed int; iii-sdk forwards timeoutMs to
+// it uncapped, so anything above this silently becomes a ~1ms timeout.
+const MAX_KV_TIMEOUT_MS = 2_147_483_647
 const KV_TIMEOUT_MS = resolveKvTimeoutMs()
 
 function resolveKvTimeoutMs(): number {
@@ -37,7 +33,10 @@ function resolveKvTimeoutMs(): number {
   const trimmed = raw.trim()
   if (!/^\d+$/.test(trimmed)) return DEFAULT_KV_TIMEOUT_MS
   const parsed = Number(trimmed)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_KV_TIMEOUT_MS
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > MAX_KV_TIMEOUT_MS) {
+    return DEFAULT_KV_TIMEOUT_MS
+  }
+  return parsed
 }
 
 export class StateKV {
